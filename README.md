@@ -9,7 +9,7 @@ EasyID 易验云 focuses on identity verification and security risk control APIs
 ## Install
 
 ```bash
-pip install easyid
+pip install easyid-python
 ```
 
 ## Quick Start

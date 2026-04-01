@@ -3,7 +3,7 @@ requires = ["hatchling>=1.25.0"]
 build-backend = "hatchling.build"
 
 [project]
-name = "easyid"
+name = "easyid-python"
 version = "1.0.0"
 description = "Official Python SDK for the EasyID identity verification API."
 readme = "README.md"
