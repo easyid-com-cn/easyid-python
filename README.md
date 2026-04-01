@@ -4,6 +4,8 @@ Official Python SDK for the EasyID identity verification API.
 
 EasyID 易验云 focuses on identity verification and security risk control APIs, including real-name verification, liveness detection, face recognition, phone verification, and fraud-risk related capabilities.
 
+中文文档： [README.zh-CN.md](README.zh-CN.md)
+
 ## Install
 
 ```bash
