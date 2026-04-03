@@ -3,6 +3,8 @@ from __future__ import annotations
 import json
 import threading
 import unittest
+
+import requests
 from dataclasses import dataclass
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -32,6 +34,7 @@ class MockHTTPServer:
     def __init__(self, handler: Callable[[RecordedRequest], tuple[int, str, str]]) -> None:
         self._handler = handler
         self.requests: List[RecordedRequest] = []
+        self._exc: Optional[Exception] = None
         self._server: Optional[ThreadingHTTPServer] = None
         self._thread: Optional[threading.Thread] = None
 
@@ -39,6 +42,8 @@ class MockHTTPServer:
         outer = self
 
         class Handler(BaseHTTPRequestHandler):
+            protocol_version = "HTTP/1.1"
+
             def do_GET(self) -> None:
                 self._handle()
 
@@ -61,11 +66,23 @@ class MockHTTPServer:
                     body=body,
                 )
                 outer.requests.append(request)
-                status, content_type, payload = outer._handler(request)
+                try:
+                    status, content_type, payload = outer._handler(request)
+                except Exception as exc:
+                    outer._exc = exc
+                    body = str(exc).encode("utf-8")
+                    self.send_response(500)
+                    self.send_header("Content-Type", "text/plain")
+                    self.send_header("Content-Length", str(len(body)))
+                    self.end_headers()
+                    self.wfile.write(body)
+                    return
+                body = payload.encode("utf-8")
                 self.send_response(status)
                 self.send_header("Content-Type", content_type)
+                self.send_header("Content-Length", str(len(body)))
                 self.end_headers()
-                self.wfile.write(payload.encode("utf-8"))
+                self.wfile.write(body)
 
         self._server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
         self._thread = threading.Thread(target=self._server.serve_forever, daemon=True)
@@ -78,6 +95,8 @@ class MockHTTPServer:
         self._server.server_close()
         assert self._thread is not None
         self._thread.join(timeout=5)
+        if self._exc is not None and exc_type is None:
+            raise self._exc
 
     @property
     def base_url(self) -> str:
@@ -90,8 +109,11 @@ class EasyIDTests(unittest.TestCase):
     key_id = "ak_3f9a2b1c7d4e8f0a"
     secret = "sk_test"
 
-    def client(self, server: TestHTTPServer) -> EasyID:
-        return EasyID(self.key_id, self.secret, base_url=server.base_url, timeout=5.0)
+    def client(self, server) -> EasyID:
+        # Disable system proxy so mock server on 127.0.0.1 is reachable directly.
+        session = requests.Session()
+        session.trust_env = False
+        return EasyID(self.key_id, self.secret, base_url=server.base_url, timeout=5.0, session=session)
 
     def test_verify2(self) -> None:
         def handler(request: RecordedRequest) -> tuple[int, str, str]:
@@ -243,7 +265,7 @@ class EasyIDTests(unittest.TestCase):
             self.assertEqual(ctx.exception.code, 5000)
 
     def test_invalid_key_id(self) -> None:
-        for value in ["", "sk_abc", "ak_test", "ak_\r\nEvil: 1", "ak_UPPERCASE"]:
+        for value in ["", "sk_abc", "ak_\r\nEvil: 1", "ak_ space", "ak_has/slash"]:
             with self.assertRaises(ValueError):
                 EasyID(value, "sk_secret")
 
