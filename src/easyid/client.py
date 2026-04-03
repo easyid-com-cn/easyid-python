@@ -15,7 +15,7 @@ from .phone import PhoneService
 from .risk import RiskService
 from .transport import DEFAULT_BASE_URL, SDK_VERSION, Transport
 
-_KEY_ID_RE = re.compile(r"^ak_[0-9a-f]+$")
+_KEY_ID_RE = re.compile(r"^ak_[0-9a-zA-Z_]+$")
 
 
 class EasyID:
